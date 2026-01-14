@@ -26,6 +26,14 @@ constexpr uint8_t PIN_TFT_CS   = 10;
 constexpr uint8_t PIN_TFT_DC   = 2;
 constexpr uint8_t PIN_TFT_BL   = 3;
 
+// ==================== Touch Controller Pins (CST816D) ====================
+// Internal I2C bus (separate from ADXL375)
+constexpr uint8_t PIN_TOUCH_SDA = 4;
+constexpr uint8_t PIN_TOUCH_SCL = 5;
+constexpr uint8_t PIN_TOUCH_INT = 0;
+constexpr uint8_t PIN_TOUCH_RST = 1;
+constexpr uint8_t TOUCH_I2C_ADDR = 0x15;
+
 // ==================== ADXL375 I2C Pins (JST Connector) ====================
 // The JST connector exposes UART pins which we repurpose for I2C
 // JST Pinout: GND, 3.3V, TX (GPIO21), RX (GPIO20)
@@ -50,7 +58,7 @@ constexpr uint16_t DISPLAY_CENTER_X = DISPLAY_WIDTH / 2;
 constexpr uint16_t DISPLAY_CENTER_Y = DISPLAY_HEIGHT / 2;
 
 // Display refresh rate (milliseconds)
-constexpr uint32_t DISPLAY_UPDATE_INTERVAL_MS = 50;  // 20 Hz refresh
+constexpr uint32_t DISPLAY_UPDATE_INTERVAL_MS = 100;  // 10 Hz refresh (slower for consistent sampling)
 
 // ==================== ADXL375 Configuration ====================
 // Fixed range: +/- 200g
@@ -72,13 +80,23 @@ constexpr uint32_t ADXL_SAMPLE_INTERVAL_MS = 1000 / ADXL_SAMPLE_RATE_HZ;
 constexpr size_t MOVING_AVG_WINDOW_SIZE = 10;
 
 // ==================== UI Configuration ====================
-// Colors (RGB565 format)
-constexpr uint16_t COLOR_BACKGROUND = 0x0000;   // Black
-constexpr uint16_t COLOR_TEXT       = 0xFFFF;   // White
-constexpr uint16_t COLOR_LOW_G      = 0x07E0;   // Green (0-10g)
-constexpr uint16_t COLOR_MED_G      = 0xFFE0;   // Yellow (10-50g)
-constexpr uint16_t COLOR_HIGH_G     = 0xFD20;   // Orange (50-100g)
-constexpr uint16_t COLOR_EXTREME_G  = 0xF800;   // Red (>100g)
+// Pastel/neutral color palette (RGB565 format)
+constexpr uint16_t UI_BG_PRIMARY     = 0x0000;   // Pure black background
+constexpr uint16_t UI_BG_SECONDARY   = 0x18E3;   // Dark gray (25, 28, 30)
+constexpr uint16_t UI_TEXT_PRIMARY   = 0xF7BE;   // Cream/warm white (245, 240, 240)
+constexpr uint16_t UI_TEXT_SECONDARY = 0xAD55;   // Warm gray (170, 170, 170)
+constexpr uint16_t UI_TEXT_MUTED     = 0x52AA;   // Muted gray (80, 85, 85)
+constexpr uint16_t UI_ACCENT         = 0xAE9A;   // Soft coral/peach (172, 210, 210)
+constexpr uint16_t UI_GAUGE_BG       = 0x2104;   // Dark gauge background (32, 32, 32)
+
+// G-force pastel colors
+constexpr uint16_t COLOR_LOW_G      = 0x9F93;   // Soft sage green (158, 248, 155)
+constexpr uint16_t COLOR_MED_G      = 0xFED3;   // Soft peach/amber (255, 218, 155)
+constexpr uint16_t COLOR_HIGH_G     = 0xFBCE;   // Soft coral (250, 188, 115)
+constexpr uint16_t COLOR_EXTREME_G  = 0xFB2C;   // Soft red/salmon (250, 100, 100)
+
+// ==================== Button Configuration ====================
+constexpr uint8_t PIN_BUTTON = 9;  // Boot button on ESP32-C3 (active LOW)
 
 // G-force thresholds for color changes
 constexpr float G_THRESHOLD_LOW     = 10.0f;
@@ -86,11 +104,15 @@ constexpr float G_THRESHOLD_MED     = 50.0f;
 constexpr float G_THRESHOLD_HIGH    = 100.0f;
 
 // Arc gauge configuration
-constexpr uint16_t GAUGE_RADIUS_OUTER = 110;
-constexpr uint16_t GAUGE_RADIUS_INNER = 85;
+constexpr uint16_t GAUGE_RADIUS_OUTER = 100;
+constexpr uint16_t GAUGE_RADIUS_INNER = 78;
 constexpr float GAUGE_START_ANGLE = 135.0f;   // Start at bottom-left
 constexpr float GAUGE_END_ANGLE   = 405.0f;   // End at bottom-right (270 degree sweep)
 constexpr float GAUGE_MAX_VALUE   = 200.0f;   // Full scale = 200g
+
+// Touch gesture timing
+constexpr uint32_t TOUCH_TAP_THRESHOLD_MS = 300;
+constexpr uint32_t TOUCH_LONG_PRESS_MS = 500;
 
 // ==================== Serial Debug ====================
 constexpr uint32_t SERIAL_BAUD_RATE = 115200;

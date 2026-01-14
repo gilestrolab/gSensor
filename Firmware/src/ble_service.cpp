@@ -14,6 +14,7 @@ BleService::BleService()
     , pConfigChar_(nullptr)
     , pAdvertising_(nullptr)
     , deviceConnected_(false)
+    , bleEnabled_(false)
     , notificationRateHz_(BLE_DEFAULT_NOTIFY_RATE_HZ)
     , commandCallback_(nullptr) {
 }
@@ -83,6 +84,7 @@ bool BleService::begin(const char* deviceName) {
         Serial.println(deviceName);
     }
 
+    bleEnabled_ = true;
     return true;
 }
 
@@ -92,10 +94,38 @@ void BleService::stop() {
     }
     NimBLEDevice::deinit(true);
     deviceConnected_ = false;
+    bleEnabled_ = false;
+
+    // Reset pointers after deinit
+    pServer_ = nullptr;
+    pService_ = nullptr;
+    pAccelChar_ = nullptr;
+    pPeakChar_ = nullptr;
+    pControlChar_ = nullptr;
+    pConfigChar_ = nullptr;
+    pAdvertising_ = nullptr;
 
     if (DEBUG_ENABLED) {
         Serial.println("BLE stopped");
     }
+}
+
+void BleService::setEnabled(bool enabled) {
+    if (enabled == bleEnabled_) {
+        return;  // No change needed
+    }
+
+    if (enabled) {
+        // Re-initialize BLE
+        begin(BLE_DEVICE_NAME);
+    } else {
+        // Stop BLE
+        stop();
+    }
+}
+
+bool BleService::isEnabled() const {
+    return bleEnabled_;
 }
 
 bool BleService::isConnected() const {

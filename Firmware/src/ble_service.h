@@ -52,6 +52,23 @@ public:
     void stop();
 
     /**
+     * @brief Enable or disable BLE at runtime
+     *
+     * When disabled, stops advertising and disconnects clients.
+     * When re-enabled, reinitializes and starts advertising.
+     *
+     * @param enabled True to enable, false to disable
+     */
+    void setEnabled(bool enabled);
+
+    /**
+     * @brief Check if BLE is enabled
+     *
+     * @return true if enabled
+     */
+    bool isEnabled() const;
+
+    /**
      * @brief Check if a client is connected
      *
      * @return true if connected
@@ -117,6 +134,7 @@ private:
     NimBLEAdvertising* pAdvertising_;
 
     bool deviceConnected_;
+    bool bleEnabled_;
     uint8_t notificationRateHz_;
     CommandCallback commandCallback_;
 

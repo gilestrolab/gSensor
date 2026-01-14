@@ -13,6 +13,7 @@
 #include <LovyanGFX.hpp>
 #include "config.h"
 #include "signal_processing.h"
+#include "settings.h"
 
 /**
  * @brief LovyanGFX display class for ESP32-2424S012
@@ -85,19 +86,61 @@ public:
     void setBacklight(uint8_t brightness);
     void backlightOn(bool on = true);
 
+    /**
+     * @brief Draw the settings screen
+     *
+     * Args:
+     *     settings (Settings&): Current settings state.
+     *     bleConnected (bool): Whether a BLE client is connected.
+     */
+    void drawSettingsScreen(const Settings& settings, bool bleConnected);
+
+    /**
+     * @brief Clear screen for new content
+     *
+     * Use when switching between screens.
+     */
+    void prepareScreen();
+
+    /**
+     * @brief Reset gauge max to default (10g)
+     *
+     * Call this when resetting peak to also reset gauge scale.
+     */
+    void resetGaugeMax();
+
+    /**
+     * @brief Get current gauge max value
+     */
+    float getGaugeMax() const { return gaugeMax_; }
+
 private:
     LGFX tft_;
     LGFX_Sprite* gaugeSprite_;
     float lastMagnitude_;
     float lastPeak_;
+    float gaugeMax_;  // Dynamic gauge range (starts at 10g)
 
     uint32_t getGColor(float g) const;
+
+    // Racing HUD style drawing functions
+    void drawGaugeHUD(float value, uint32_t color);
+    void drawAccentRing(uint32_t color);
+    void drawMagnitudeSmooth(float magnitude, uint32_t color);
+    void drawPeakHUD(float peak);
+    void drawXYZHUD(const AccelData& data);
+
+    // Legacy functions (redirect to HUD versions)
     void drawGauge(float value, uint32_t color);
     void drawMagnitude(float magnitude, uint32_t color);
     void drawPeak(float peak);
     void drawXYZ(const AccelData& data);
+
     void fillArc(int16_t x, int16_t y, float start_angle, float end_angle,
                  int16_t r_outer, int16_t r_inner, uint32_t color);
+    void drawToggleButton(int16_t x, int16_t y, int16_t w, int16_t h,
+                          const char* label, bool active);
+    void drawBackButton(int16_t x, int16_t y, int16_t w, int16_t h);
 };
 
 #endif // DISPLAY_H
