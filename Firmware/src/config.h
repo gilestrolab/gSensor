@@ -67,9 +67,15 @@ constexpr float ADXL375_SCALE_FACTOR = 0.049f;  // g per LSB
 constexpr float ADXL375_MAX_G = 200.0f;
 
 // Sample rate (Hz) - ADXL375 can output up to 3200 Hz
-// We'll use a reasonable rate for display purposes
-constexpr uint32_t ADXL_SAMPLE_RATE_HZ = 100;
-constexpr uint32_t ADXL_SAMPLE_INTERVAL_MS = 1000 / ADXL_SAMPLE_RATE_HZ;
+// Default rate for display, can be changed at runtime via serial command
+constexpr uint32_t ADXL_DEFAULT_SAMPLE_RATE_HZ = 100;
+
+// Available sample rates (serial command: s1-s4)
+// Limited to 800 Hz max due to serial bandwidth at 115200 baud
+constexpr uint32_t ADXL_RATE_100HZ  = 100;   // s1 - default/low power
+constexpr uint32_t ADXL_RATE_200HZ  = 200;   // s2
+constexpr uint32_t ADXL_RATE_400HZ  = 400;   // s3
+constexpr uint32_t ADXL_RATE_800HZ  = 800;   // s4 - max for serial
 
 // ==================== Signal Processing ====================
 // Moving average filter window size

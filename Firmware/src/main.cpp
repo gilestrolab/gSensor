@@ -39,9 +39,50 @@ Settings settings;
 hw_timer_t* sampleTimer = nullptr;
 volatile bool sampleFlag = false;
 
+// Current sample rate (can be changed at runtime via serial command)
+uint32_t currentSampleRateHz = ADXL_DEFAULT_SAMPLE_RATE_HZ;
+
 // Timer ISR - just sets flag, actual I2C read happens in loop
 void IRAM_ATTR onSampleTimer() {
     sampleFlag = true;
+}
+
+/**
+ * @brief Change the accelerometer sample rate at runtime
+ *
+ * Updates both the hardware timer interval and the ADXL375 data rate register.
+ * Valid rates: 100, 200, 400, 800 Hz (limited by serial bandwidth)
+ *
+ * @param rateHz Target sample rate in Hz
+ * @return true if rate was changed successfully
+ */
+bool setSampleRate(uint32_t rateHz) {
+    // Map Hz to ADXL data rate enum
+    adxl3xx_dataRate_t adxlRate;
+    switch (rateHz) {
+        case 100:  adxlRate = ADXL3XX_DATARATE_100_HZ; break;
+        case 200:  adxlRate = ADXL3XX_DATARATE_200_HZ; break;
+        case 400:  adxlRate = ADXL3XX_DATARATE_400_HZ; break;
+        case 800:  adxlRate = ADXL3XX_DATARATE_800_HZ; break;
+        default:
+            Serial.printf("Invalid rate: %d Hz\n", rateHz);
+            return false;
+    }
+
+    // Update ADXL375 data rate
+    accel.setDataRate(adxlRate);
+
+    // Calculate new timer interval in microseconds
+    uint32_t intervalUs = 1000000 / rateHz;
+
+    // Update hardware timer
+    timerAlarmDisable(sampleTimer);
+    timerAlarmWrite(sampleTimer, intervalUs, true);
+    timerAlarmEnable(sampleTimer);
+
+    currentSampleRateHz = rateHz;
+    Serial.printf("Sample rate: %d Hz\n", rateHz);
+    return true;
 }
 
 // Timing variables
@@ -50,6 +91,9 @@ uint32_t lastBLENotifyTime = 0;
 
 // State
 bool sensorOk = false;
+
+// Forward declaration (ESP32 doesn't auto-call serialEvent like classic Arduino)
+void serialEvent();
 
 /**
  * @brief Arduino setup function
@@ -145,14 +189,15 @@ void setup() {
     pinMode(PIN_BUTTON, INPUT_PULLUP);
     Serial.println("[Setup] Button initialized on GPIO9");
 
-    // Set up hardware timer for precise 100Hz sampling
+    // Set up hardware timer for sampling
     // Timer 0, prescaler 80 (80MHz/80 = 1MHz tick rate), count up
     sampleTimer = timerBegin(0, 80, true);
     timerAttachInterrupt(sampleTimer, &onSampleTimer, true);
-    // Alarm every 10000 microseconds (10ms = 100Hz), auto-reload enabled
-    timerAlarmWrite(sampleTimer, ADXL_SAMPLE_INTERVAL_MS * 1000, true);
+    // Set initial rate (can be changed at runtime via serial command s1-s4)
+    uint32_t initialIntervalUs = 1000000 / ADXL_DEFAULT_SAMPLE_RATE_HZ;
+    timerAlarmWrite(sampleTimer, initialIntervalUs, true);
     timerAlarmEnable(sampleTimer);
-    Serial.printf("[Setup] Sample timer configured for %d Hz\n", ADXL_SAMPLE_RATE_HZ);
+    Serial.printf("[Setup] Sample timer configured for %d Hz (s1-s4 to change)\n", ADXL_DEFAULT_SAMPLE_RATE_HZ);
 
     // Initialize timing
     lastDisplayTime = millis();
@@ -286,20 +331,45 @@ void loop() {
         }
     }
 
+    // Handle serial commands (ESP32 doesn't auto-call serialEvent)
+    serialEvent();
+
     // Small delay to prevent tight loop (saves power)
     delay(1);
 }
 
 /**
- * @brief Handle serial commands (optional feature)
+ * @brief Handle serial commands
  *
  * Commands:
  *   'r' - Reset peak value
  *   'c' - Calibrate (reset filters)
+ *   's1' - Set sample rate to 100 Hz
+ *   's2' - Set sample rate to 200 Hz
+ *   's3' - Set sample rate to 400 Hz
+ *   's4' - Set sample rate to 800 Hz
+ *   '?' - Print current status
  */
 void serialEvent() {
+    static bool expectingRateDigit = false;
+
     while (Serial.available()) {
         char cmd = Serial.read();
+
+        // Handle rate digit after 's' command
+        if (expectingRateDigit) {
+            expectingRateDigit = false;
+            switch (cmd) {
+                case '1': setSampleRate(ADXL_RATE_100HZ); break;
+                case '2': setSampleRate(ADXL_RATE_200HZ); break;
+                case '3': setSampleRate(ADXL_RATE_400HZ); break;
+                case '4': setSampleRate(ADXL_RATE_800HZ); break;
+                default:
+                    Serial.println("Invalid rate. Use s1=100Hz, s2=200Hz, s3=400Hz, s4=800Hz");
+                    break;
+            }
+            continue;
+        }
 
         switch (cmd) {
             case 'r':
@@ -317,6 +387,16 @@ void serialEvent() {
                 if (DEBUG_ENABLED && settings.serialEnabled) {
                     Serial.println("Filters reset");
                 }
+                break;
+
+            case 's':
+            case 'S':
+                expectingRateDigit = true;
+                break;
+
+            case '?':
+                Serial.printf("Rate: %d Hz | Commands: r=reset peak, c=calibrate, s1-s4=rate, ?=status\n",
+                              currentSampleRateHz);
                 break;
 
             default:

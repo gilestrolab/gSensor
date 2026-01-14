@@ -17,10 +17,15 @@ import time
 from collections import deque
 from datetime import datetime
 
+import csv
+import tkinter as tk
+from tkinter import filedialog
+
 import serial
 import serial.tools.list_ports
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
+from matplotlib.widgets import Button
 import numpy as np
 
 
@@ -28,6 +33,17 @@ import numpy as np
 DEFAULT_BAUD = 115200
 DEFAULT_PORT = "/dev/ttyACM0"
 WINDOW_SIZE = 500  # Number of samples to display
+
+# Sample rate options (must match firmware config.h)
+# Note: At 115200 baud with ~45 bytes/line, max sustainable rate is ~250 Hz
+SAMPLE_RATES = {
+    1: 100,   # s1 - default/display rate
+    2: 200,   # s2 - recommended for recording at 115200 baud
+    3: 400,   # s3 - may cause buffer overflow
+    4: 800,   # s4 - requires higher baud rate
+}
+DEFAULT_DISPLAY_RATE = 1   # 100 Hz for normal display
+DEFAULT_RECORDING_RATE = 2  # 200 Hz - safe for 115200 baud
 
 
 class GsensorPlotter:
@@ -66,10 +82,22 @@ class GsensorPlotter:
         self.ax_xyz = None
         self.ax_mag = None
         self.lines = {}
+        self.buttons = {}
+        self.status_text = None
 
         # Stats
         self.sample_count = 0
         self.start_time = None
+
+        # Recording state
+        self.recording = False
+        self.recorded_data = []
+        self.record_start_time = None
+
+        # Sample rate settings
+        self.display_rate = DEFAULT_DISPLAY_RATE
+        self.recording_rate = DEFAULT_RECORDING_RATE
+        self.current_rate = self.display_rate
 
     def connect(self) -> bool:
         """
@@ -151,6 +179,18 @@ class GsensorPlotter:
             self.peak_data.append(peak)
 
             self.sample_count += 1
+
+            # Store data if recording
+            if self.recording:
+                self.recorded_data.append({
+                    "timestamp_ms": timestamp,
+                    "x": x,
+                    "y": y,
+                    "z": z,
+                    "magnitude": mag,
+                    "peak": peak,
+                })
+
             return True
 
         except (ValueError, IndexError):
@@ -161,24 +201,38 @@ class GsensorPlotter:
         if not self.serial or not self.serial.is_open:
             return
 
-        while self.serial.in_waiting > 0:
-            try:
-                line = self.serial.readline().decode("utf-8", errors="ignore")
-                if line.strip():
-                    parsed = self.parse_line(line)
-                    if not parsed and self.sample_count == 0:
-                        # Show unparseable lines only at startup for debugging
-                        print(f"Skipping: {line.strip()[:60]}")
-            except Exception as e:
-                print(f"Read error: {e}")
+        try:
+            while self.serial.in_waiting > 0:
+                try:
+                    line = self.serial.readline().decode("utf-8", errors="ignore")
+                    if line.strip():
+                        parsed = self.parse_line(line)
+                        if not parsed and self.sample_count == 0:
+                            # Show unparseable lines only at startup for debugging
+                            print(f"Skipping: {line.strip()[:60]}")
+                except UnicodeDecodeError:
+                    pass  # Skip malformed data
+        except OSError as e:
+            # Serial port disconnected or buffer overflow
+            print(f"Serial error: {e}")
+            print("Device may have disconnected or buffer overflow occurred.")
+            if self.recording:
+                print(f"Recording stopped with {len(self.recorded_data)} samples.")
+                self.recording = False
 
     def setup_plot(self):
         """Set up the matplotlib figure and axes."""
         plt.style.use("dark_background")
 
-        self.fig, (self.ax_xyz, self.ax_mag) = plt.subplots(
-            2, 1, figsize=(12, 8), sharex=True
+        self.fig = plt.figure(figsize=(12, 9))
+
+        # Create gridspec for layout: plots on top, buttons at bottom
+        gs = self.fig.add_gridspec(
+            3, 1, height_ratios=[1, 1, 0.12], hspace=0.3, top=0.92, bottom=0.08
         )
+
+        self.ax_xyz = self.fig.add_subplot(gs[0])
+        self.ax_mag = self.fig.add_subplot(gs[1], sharex=self.ax_xyz)
 
         self.fig.suptitle("gSENSOR Real-Time Data", fontsize=14)
 
@@ -186,7 +240,6 @@ class GsensorPlotter:
         self.ax_xyz.set_ylabel("Acceleration (g)")
         self.ax_xyz.set_ylim(-10, 10)
         self.ax_xyz.grid(True, alpha=0.3)
-        self.ax_xyz.legend(loc="upper right")
 
         (self.lines["x"],) = self.ax_xyz.plot([], [], "r-", label="X", linewidth=1)
         (self.lines["y"],) = self.ax_xyz.plot([], [], "g-", label="Y", linewidth=1)
@@ -207,7 +260,32 @@ class GsensorPlotter:
         )
         self.ax_mag.legend(loc="upper right")
 
-        plt.tight_layout()
+        # Add control buttons
+        button_style = {"color": "#333333", "hovercolor": "#555555"}
+
+        ax_record = self.fig.add_axes([0.15, 0.02, 0.12, 0.04])
+        self.buttons["record"] = Button(ax_record, "Record", **button_style)
+        self.buttons["record"].on_clicked(self.toggle_recording)
+
+        ax_save = self.fig.add_axes([0.30, 0.02, 0.12, 0.04])
+        self.buttons["save"] = Button(ax_save, "Save CSV", **button_style)
+        self.buttons["save"].on_clicked(self.save_csv)
+
+        ax_clear = self.fig.add_axes([0.45, 0.02, 0.12, 0.04])
+        self.buttons["clear"] = Button(ax_clear, "Clear", **button_style)
+        self.buttons["clear"].on_clicked(self.clear_data)
+
+        ax_reset = self.fig.add_axes([0.60, 0.02, 0.12, 0.04])
+        self.buttons["reset"] = Button(ax_reset, "Reset Peak", **button_style)
+        self.buttons["reset"].on_clicked(self.reset_peak)
+
+        # Status text on the right side
+        self.status_text = self.fig.text(
+            0.85, 0.035, "", fontsize=9, ha="center", va="center", color="#888888"
+        )
+
+        # Connect keyboard handler
+        self.fig.canvas.mpl_connect("key_press_event", self.on_key)
 
     def update_plot(self, frame):
         """
@@ -253,15 +331,29 @@ class GsensorPlotter:
             elapsed = t[-1] if t else 0
             if elapsed > 0:
                 rate = self.sample_count / elapsed
+                rec_indicator = " [REC]" if self.recording else ""
                 self.fig.suptitle(
-                    f"gSENSOR Real-Time Data | {rate:.1f} Hz | Peak: {self.peak_data[-1]:.2f}g",
+                    f"gSENSOR Real-Time Data | {rate:.1f} Hz | "
+                    f"Peak: {self.peak_data[-1]:.2f}g{rec_indicator}",
                     fontsize=14,
+                    color="#ff4444" if self.recording else "white",
                 )
         else:
             self.fig.suptitle(
                 f"gSENSOR - Waiting for data... ({self.sample_count} samples)",
                 fontsize=14,
             )
+
+        # Update status text
+        if self.status_text:
+            if self.recording:
+                rec_count = len(self.recorded_data)
+                rec_hz = SAMPLE_RATES[self.recording_rate]
+                self.status_text.set_text(f"REC {rec_hz}Hz: {rec_count}")
+                self.status_text.set_color("#ff4444")
+            else:
+                self.status_text.set_text("Space: Record")
+                self.status_text.set_color("#888888")
 
         return self.lines.values()
 
@@ -302,6 +394,160 @@ class GsensorPlotter:
         """
         if self.serial and self.serial.is_open:
             self.serial.write(cmd.encode())
+
+    def set_sample_rate(self, rate_key: int):
+        """
+        Set the sensor sample rate.
+
+        Args:
+            rate_key: Rate key (1=100Hz, 2=200Hz, 3=400Hz, 4=800Hz)
+        """
+        if rate_key not in SAMPLE_RATES:
+            print(f"Invalid rate key: {rate_key}")
+            return
+
+        self.send_command(f"s{rate_key}")
+        if self.serial and self.serial.is_open:
+            self.serial.flush()  # Ensure command is sent
+            time.sleep(0.1)  # Wait for firmware to process
+        self.current_rate = rate_key
+        hz = SAMPLE_RATES[rate_key]
+        print(f"Sample rate set to {hz} Hz")
+
+    def toggle_recording(self, event=None):
+        """
+        Toggle recording state.
+
+        Automatically switches to high sample rate when recording starts,
+        and back to display rate when recording stops.
+
+        Args:
+            event: Button click event (unused).
+        """
+        self.recording = not self.recording
+        if self.recording:
+            # Switch to high sample rate for recording
+            self.set_sample_rate(self.recording_rate)
+            self.recorded_data = []
+            self.record_start_time = datetime.now()
+            rec_hz = SAMPLE_RATES[self.recording_rate]
+            print(f"Recording at {rec_hz} Hz started at {self.record_start_time.strftime('%H:%M:%S')}")
+            if "record" in self.buttons:
+                self.buttons["record"].label.set_text("Stop")
+                self.buttons["record"].color = "#aa3333"
+                self.buttons["record"].hovercolor = "#cc4444"
+        else:
+            # Switch back to display rate
+            self.set_sample_rate(self.display_rate)
+            duration = (datetime.now() - self.record_start_time).total_seconds()
+            actual_hz = len(self.recorded_data) / duration if duration > 0 else 0
+            print(
+                f"Recording stopped. {len(self.recorded_data)} samples "
+                f"in {duration:.1f}s ({actual_hz:.1f} Hz actual)"
+            )
+            if "record" in self.buttons:
+                self.buttons["record"].label.set_text("Record")
+                self.buttons["record"].color = "#333333"
+                self.buttons["record"].hovercolor = "#555555"
+
+    def save_csv(self, event=None):
+        """
+        Save recorded data to CSV file.
+
+        Args:
+            event: Button click event (unused).
+        """
+        if not self.recorded_data:
+            print("No data to save. Start recording first.")
+            return
+
+        # Create hidden Tk root for file dialog
+        root = tk.Tk()
+        root.withdraw()
+
+        # Default filename with timestamp
+        default_name = f"gsensor_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+
+        filepath = filedialog.asksaveasfilename(
+            defaultextension=".csv",
+            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
+            initialfile=default_name,
+            title="Save accelerometer data",
+        )
+
+        root.destroy()
+
+        if not filepath:
+            print("Save cancelled.")
+            return
+
+        try:
+            with open(filepath, "w", newline="") as f:
+                # Write header comment
+                f.write(f"# gSENSOR Data Export\n")
+                f.write(f"# Port: {self.port}\n")
+                f.write(f"# Baud: {self.baud}\n")
+                f.write(f"# Sample Rate: {SAMPLE_RATES[self.recording_rate]} Hz\n")
+                if self.record_start_time:
+                    f.write(
+                        f"# Start: {self.record_start_time.strftime('%Y-%m-%d %H:%M:%S')}\n"
+                    )
+                f.write(f"# Samples: {len(self.recorded_data)}\n")
+
+                writer = csv.DictWriter(
+                    f,
+                    fieldnames=["timestamp_ms", "x", "y", "z", "magnitude", "peak"],
+                )
+                writer.writeheader()
+                writer.writerows(self.recorded_data)
+
+            print(f"Saved {len(self.recorded_data)} samples to {filepath}")
+        except IOError as e:
+            print(f"Error saving file: {e}")
+
+    def clear_data(self, event=None):
+        """
+        Clear all data buffers.
+
+        Args:
+            event: Button click event (unused).
+        """
+        self.timestamps.clear()
+        self.x_data.clear()
+        self.y_data.clear()
+        self.z_data.clear()
+        self.mag_data.clear()
+        self.peak_data.clear()
+        self.recorded_data = []
+        self.sample_count = 0
+        self.start_time = None
+        print("Data cleared.")
+
+    def reset_peak(self, event=None):
+        """
+        Send reset peak command to sensor.
+
+        Args:
+            event: Button click event (unused).
+        """
+        self.send_command("r")
+        print("Peak reset command sent.")
+
+    def on_key(self, event):
+        """
+        Handle keyboard shortcuts.
+
+        Args:
+            event: Key press event.
+        """
+        if event.key == " ":
+            self.toggle_recording()
+        elif event.key.lower() == "s":
+            self.save_csv()
+        elif event.key.lower() == "c":
+            self.clear_data()
+        elif event.key.lower() == "r":
+            self.reset_peak()
 
 
 def list_ports():
@@ -358,6 +604,8 @@ def main():
     print("=" * 40)
     print(f"Port: {args.port}")
     print(f"Baud: {args.baud}")
+    print(f"Recording rate: {SAMPLE_RATES[DEFAULT_RECORDING_RATE]} Hz")
+    print("Keyboard: Space=Record, S=Save, C=Clear, R=Reset")
     print("Press Ctrl+C to stop")
     print("=" * 40)
 
