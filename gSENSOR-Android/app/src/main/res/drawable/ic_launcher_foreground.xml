@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Accelerometer icon - 3 axes -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,24L54,84"
+        android:strokeWidth="4"
+        android:strokeColor="#FFFFFF"/>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M24,54L84,54"
+        android:strokeWidth="4"
+        android:strokeColor="#FFFFFF"/>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M34,34L74,74"
+        android:strokeWidth="4"
+        android:strokeColor="#FFFFFF"/>
+    <!-- Center circle -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,54m-8,0a8,8 0,1 1,16 0a8,8 0,1 1,-16 0"/>
+    <!-- Arrow heads -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,24L48,34L60,34Z"/>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M84,54L74,48L74,60Z"/>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M74,74L68,64L78,68Z"/>
+</vector>
