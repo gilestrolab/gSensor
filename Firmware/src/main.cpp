@@ -176,6 +176,33 @@ void setup() {
                 }
                 break;
 
+            case BLE_CMD_SET_SAMPLE_RATE_100HZ:
+                if (setSampleRate(ADXL_RATE_100HZ)) {
+                    settings.sampleRateHz = ADXL_RATE_100HZ;
+                    if (DEBUG_ENABLED) {
+                        Serial.println("BLE: Sample rate set to 100 Hz");
+                    }
+                }
+                break;
+
+            case BLE_CMD_SET_SAMPLE_RATE_200HZ:
+                if (setSampleRate(ADXL_RATE_200HZ)) {
+                    settings.sampleRateHz = ADXL_RATE_200HZ;
+                    if (DEBUG_ENABLED) {
+                        Serial.println("BLE: Sample rate set to 200 Hz");
+                    }
+                }
+                break;
+
+            case BLE_CMD_SET_SAMPLE_RATE_400HZ:
+                if (setSampleRate(ADXL_RATE_400HZ)) {
+                    settings.sampleRateHz = ADXL_RATE_400HZ;
+                    if (DEBUG_ENABLED) {
+                        Serial.println("BLE: Sample rate set to 400 Hz");
+                    }
+                }
+                break;
+
             default:
                 if (DEBUG_ENABLED) {
                     Serial.print("BLE: Unknown command 0x");

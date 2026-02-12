@@ -181,6 +181,23 @@ class BleManager(private val context: Context) {
         sendCommand(BleConstants.CMD_RESET_FILTERS)
     }
 
+    /**
+     * Set the device acquisition sample rate.
+     * @param rateHz Sample rate in Hz (100, 200, or 400)
+     */
+    fun setSampleRate(rateHz: Int) {
+        val command = when (rateHz) {
+            100 -> BleConstants.CMD_SET_SAMPLE_RATE_100HZ
+            200 -> BleConstants.CMD_SET_SAMPLE_RATE_200HZ
+            400 -> BleConstants.CMD_SET_SAMPLE_RATE_400HZ
+            else -> {
+                android.util.Log.w("BleManager", "Invalid sample rate: $rateHz")
+                return
+            }
+        }
+        sendCommand(command)
+    }
+
     private fun sendCommand(command: Byte) {
         val gatt = bluetoothGatt ?: return
         val service = gatt.getService(BleConstants.SERVICE_UUID) ?: return

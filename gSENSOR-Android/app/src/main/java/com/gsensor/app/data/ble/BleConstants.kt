@@ -24,6 +24,11 @@ object BleConstants {
     const val CMD_RESET_PEAK: Byte = 0x01
     const val CMD_RESET_FILTERS: Byte = 0x02
 
+    // Sample rate control commands
+    const val CMD_SET_SAMPLE_RATE_100HZ: Byte = 0x10
+    const val CMD_SET_SAMPLE_RATE_200HZ: Byte = 0x11
+    const val CMD_SET_SAMPLE_RATE_400HZ: Byte = 0x12
+
     // Scan settings
     const val SCAN_TIMEOUT_MS = 10000L
 }

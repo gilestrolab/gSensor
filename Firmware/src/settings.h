@@ -10,6 +10,7 @@
 #define SETTINGS_H
 
 #include <Arduino.h>
+#include "config.h"
 
 /**
  * @brief UI screen enumeration
@@ -28,6 +29,7 @@ enum class UIScreen {
 struct Settings {
     bool bleEnabled = true;      ///< Enable BLE advertising and notifications
     bool serialEnabled = true;   ///< Enable serial debug output
+    uint32_t sampleRateHz = ADXL_DEFAULT_SAMPLE_RATE_HZ;  ///< Current acquisition sample rate
 
     /**
      * @brief Reset settings to defaults
@@ -35,6 +37,7 @@ struct Settings {
     void reset() {
         bleEnabled = true;
         serialEnabled = true;
+        sampleRateHz = ADXL_DEFAULT_SAMPLE_RATE_HZ;
     }
 };
 

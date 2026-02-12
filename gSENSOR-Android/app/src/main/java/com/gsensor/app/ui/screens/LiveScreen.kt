@@ -5,8 +5,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.FiberManualRecord
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -35,6 +38,10 @@ fun LiveScreen(
     val isRecording by viewModel.isRecording.collectAsState()
     val sampleCount by viewModel.recordingSampleCount.collectAsState()
     val recordingStartTime by viewModel.recordingStartTime.collectAsState()
+    val currentSampleRate by viewModel.sampleRate.collectAsState()
+
+    // Bottom sheet state
+    var showSampleRateSheet by remember { mutableStateOf(false) }
 
     // Handle disconnection
     LaunchedEffect(connectionState) {
@@ -59,6 +66,12 @@ fun LiveScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { showSampleRateSheet = true }) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Sample Rate Settings"
+                        )
+                    }
                     IconButton(onClick = onNavigateToRecordings) {
                         Icon(
                             imageVector = Icons.Default.History,
@@ -106,6 +119,18 @@ fun LiveScreen(
                 onStopRecording = { viewModel.stopRecording() }
             )
         }
+    }
+
+    // Sample rate bottom sheet
+    if (showSampleRateSheet) {
+        SampleRateBottomSheet(
+            currentRate = currentSampleRate,
+            onRateSelected = { rate ->
+                viewModel.setSampleRate(rate)
+                showSampleRateSheet = false
+            },
+            onDismiss = { showSampleRateSheet = false }
+        )
     }
 }
 
@@ -348,4 +373,91 @@ private fun formatDuration(seconds: Long): String {
     val mins = seconds / 60
     val secs = seconds % 60
     return String.format(Locale.US, "%02d:%02d", mins, secs)
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SampleRateBottomSheet(
+    currentRate: Int,
+    onRateSelected: (Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Text(
+                text = "Acquisition Sample Rate",
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+
+            // Radio button options
+            listOf(100, 200, 400).forEach { rate ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .selectable(
+                            selected = (rate == currentRate),
+                            onClick = { onRateSelected(rate) }
+                        )
+                        .padding(vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    RadioButton(
+                        selected = (rate == currentRate),
+                        onClick = { onRateSelected(rate) }
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column {
+                        Text(
+                            text = "$rate Hz",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        if (rate > 50) {
+                            Text(
+                                text = "Streaming at 50 Hz (BLE limit)",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.secondary
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Info message for high rates
+            if (currentRate > 50) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                        Text(
+                            text = "Acquiring at $currentRate Hz, streaming at 50 Hz for battery efficiency. Peak detection uses full acquisition rate.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+        }
+    }
 }

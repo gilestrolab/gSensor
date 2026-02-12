@@ -35,6 +35,10 @@ class LiveViewModel(private val repository: GSensorRepository) : ViewModel() {
     val recordingSampleCount: StateFlow<Int> = repository.recordingSampleCount
     val recordingStartTime: StateFlow<Long?> = repository.recordingStartTime
 
+    // Sample rate state
+    private val _sampleRate = MutableStateFlow(100) // Default 100 Hz
+    val sampleRate: StateFlow<Int> = _sampleRate.asStateFlow()
+
     private val chartBuffer = ArrayDeque<AccelData>(CHART_BUFFER_SIZE)
 
     init {
@@ -89,6 +93,17 @@ class LiveViewModel(private val repository: GSensorRepository) : ViewModel() {
     fun resetPeak() {
         repository.bleManager.resetPeak()
         _peakValue.value = _latestData.value?.magnitude ?: 0f
+    }
+
+    /**
+     * Set the acquisition sample rate.
+     * @param rateHz Sample rate in Hz (100, 200, or 400)
+     */
+    fun setSampleRate(rateHz: Int) {
+        viewModelScope.launch {
+            repository.bleManager.setSampleRate(rateHz)
+            _sampleRate.value = rateHz
+        }
     }
 
     /**

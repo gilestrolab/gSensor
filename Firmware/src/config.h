@@ -148,4 +148,9 @@ constexpr uint32_t BLE_NOTIFY_INTERVAL_MS = 1000 / BLE_DEFAULT_NOTIFY_RATE_HZ;
 constexpr uint8_t BLE_CMD_RESET_PEAK    = 0x01;
 constexpr uint8_t BLE_CMD_RESET_FILTERS = 0x02;
 
+// Sample rate control commands
+constexpr uint8_t BLE_CMD_SET_SAMPLE_RATE_100HZ = 0x10;
+constexpr uint8_t BLE_CMD_SET_SAMPLE_RATE_200HZ = 0x11;
+constexpr uint8_t BLE_CMD_SET_SAMPLE_RATE_400HZ = 0x12;
+
 #endif // CONFIG_H
